@@ -1,55 +1,47 @@
 import streamlit as st
 from transformers import pipeline
 
-# Konfigurasi Halaman
-st.set_page_config(page_title="Analisis Sentimen Karhutla", page_icon="🌲", layout="centered")
+st.set_page_config(page_title="Analisis Sentimen Karhutla", layout="centered")
 
-st.title("🌲🔥 Analisis Sentimen Isu Karhutla")
-st.write("Aplikasi NLP klasifikasi opini masyarakat terkait kebakaran hutan dan lahan berbasis **IndoBERT**.")
+st.title("Analisis Sentimen Opini Publik Karhutla")
+st.caption("Klasifikasi sentimen masyarakat terkait isu kebakaran hutan dan lahan berbasis IndoBERT.")
 
-# Cache model agar loadingnya cepat dan hemat RAM
+MODEL_REPO = "forti2026/IndoBERT-Sentimen-Karhutla"
+
 @st.cache_resource
-def muat_model():
-    # Ambil model publik yang sudah kamu upload di Hugging Face
-    return pipeline("text-classification", model="forti2026/IndoBERT-Sentimen-Karhutla")
+def load_classifier():
+    return pipeline("text-classification", model=MODEL_REPO)
 
-with st.spinner("Sedang menyiapkan model IndoBERT di server..."):
-    pipe = muat_model()
+classifier = load_classifier()
 
-# Area Input Teks
-teks_input = st.text_area(
-    "Masukkan Komentar / Opini Publik:",
-    placeholder="Contoh: Kabut asap di Pontianak makin tebal, anak-anak tidak bisa sekolah...",
-    height=120
-)
+# Contoh kalimat uji
+preset_options = [
+    "Ketik sendiri...",
+    "Kabut asap di Pontianak makin tebal, anak-anak terpaksa libur sekolah dan sesak nafas.",
+    "BMKG memantau adanya 18 titik panas di wilayah Kalimantan hari ini.",
+    "Apresiasi setinggi-tingginya untuk tim Manggala Agni yang cepat tanggap memadamkan api."
+]
 
-# Tombol Cepat Contoh
-col1, col2, col3 = st.columns(3)
-if col1.button("📌 Contoh Negatif"):
-    teks_input = "Kabut asap makin parah dan menyesakkan dada, tolong pemerintah tangkap pelakunya!"
-if col2.button("📌 Contoh Netral"):
-    teks_input = "BMKG melaporkan adanya 18 titik api terpantau lewat satelit hari ini."
-if col3.button("📌 Contoh Positif"):
-    teks_input = "Terima kasih untuk tim Manggala Agni dan relawan yang sigap padamkan api!"
+selected_preset = st.selectbox("Gunakan contoh kalimat:", preset_options)
 
-if st.button("🔍 Analisis Sentimen", type="primary"):
-    if not teks_input.strip():
-        st.warning("Silakan ketik kalimat komentarnya terlebih dahulu!")
+default_text = "" if selected_preset == "Ketik sendiri..." else selected_preset
+user_input = st.text_area("Teks Komentar:", value=default_text, height=120)
+
+if st.button("Analisis Sentimen", type="primary"):
+    if not user_input.strip():
+        st.warning("Masukkan teks komentar terlebih dahulu.")
     else:
-        with st.spinner("Menganalisis..."):
-            hasil = pipe(teks_input)[0]
-            label = hasil['label']
-            skor = hasil['score']
-            
-            st.divider()
-            st.subheader("Hasil Klasifikasi:")
-            
-            # Tampilan Badge Sesuai Sentimen
-            if label == "Negatif":
-                st.error(f"Sentimen Dominan: **{label}** (Keyakinan: {skor*100:.1f}%)")
-            elif label == "Positif":
-                st.success(f"Sentimen Dominan: **{label}** (Keyakinan: {skor*100:.1f}%)")
-            else:
-                st.warning(f"Sentimen Dominan: **{label}** (Keyakinan: {skor*100:.1f}%)")
-                
-            st.progress(float(skor))
+        with st.spinner("Memproses..."):
+            pred = classifier(user_input)[0]
+            label = pred["label"]
+            score = pred["score"]
+
+        st.subheader("Hasil Prediksi")
+        
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            st.metric(label="Prediksi", value=label)
+        with col2:
+            st.metric(label="Tingkat Keyakinan", value=f"{score * 100:.2f}%")
+
+        st.progress(float(score))
